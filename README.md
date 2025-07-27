@@ -46,3 +46,14 @@ Efficient caching strategy, leveraging decorator/proxy and read-through implemen
 
 Full local development setup and test coverage
 
+
+🚀 How to run the project
+This project uses Visual Studio with multiple startup projects configured so that both the API and the Web UI (MVC or Blazor) start together when you press F5 (Start Debugging).
+
+✅ Setting It Up in Visual Studio
+In Solution Explorer, right-click the Solution node (top).
+Select "Properties", and go to Common Properties → Startup Project.
+Choose "Multiple startup projects".
+For both the API and Web UI projects, set Action = Start (or Start without debugging if preferred).
+Once configured, pressing F5 launches both projects concurrently—so you can hit breakpoints and debug across both the Web UI and API.
+
