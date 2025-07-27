@@ -43,6 +43,10 @@ namespace ProductCatalogAPI
             {
                 client.BaseAddress = new Uri(apiSettings.ProductApiBaseUrl);
             });
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = Configuration.GetConnectionString("Redis");
+            });
             services.AddSwaggerGen();
         }
 

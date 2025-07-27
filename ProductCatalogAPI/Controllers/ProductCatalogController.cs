@@ -1,6 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
 using ProductCatalogService;
 using ProductCatalogService.Dtos;
+using System.Collections.Generic;
+using System;
 using System.Threading.Tasks;
 
 namespace ProductCatalogAPI.Controllers
@@ -10,18 +14,38 @@ namespace ProductCatalogAPI.Controllers
     public class ProductCatalogController : ControllerBase
     {
         private readonly IProductCatalogService _service;
+        private readonly IDistributedCache _cache;
 
-        public ProductCatalogController(IProductCatalogService service)
+        public ProductCatalogController(IProductCatalogService service, IDistributedCache cache)
         {
             _service = service;
+            _cache = cache;
         }
+
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var products = await _service.GetProductsAsync();
-            return Ok(products);
+            const string cacheKey = "products:all";
+            string cachedData = await _cache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedData))
+            {
+                var products = JsonConvert.DeserializeObject<List<ProductDto>>(cachedData);
+                return Ok(products); 
+            }
+
+            var freshData = await _service.GetProductsAsync();
+
+            var serialized = JsonConvert.SerializeObject(freshData);
+            await _cache.SetStringAsync(cacheKey, serialized, new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+            });
+
+            return Ok(freshData); 
         }
+
 
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
