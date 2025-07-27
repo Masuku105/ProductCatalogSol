@@ -27,7 +27,16 @@ namespace ProductCatalogAPI.Controllers
         public async Task<IActionResult> GetAll()
         {
             const string cacheKey = "products:all";
-            string cachedData = await _cache.GetStringAsync(cacheKey);
+            string cachedData = null;
+            try
+            {
+                cachedData = await _cache.GetStringAsync(cacheKey);
+            }
+            catch(Exception ex)
+            {
+               
+            }
+           
 
             if (!string.IsNullOrEmpty(cachedData))
             {

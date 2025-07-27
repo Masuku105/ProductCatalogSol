@@ -1,154 +1,203 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.Extensions.Caching.Distributed;
 using Moq;
+using Newtonsoft.Json;
 using ProductCatalogAPI.Controllers;
 using ProductCatalogService;
-using System;
+using ProductCatalogService.Dtos;
 using System.Collections.Generic;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using FluentAssertions;
-using ProductCatalogService.Dtos;
-namespace ProductCatalogUnitTests
+using Microsoft.AspNetCore.Mvc;
+
+public class ProductCatalogTest
 {
-    public class ProductCatalogTest
+    private readonly Mock<IProductCatalogService> _mockService;
+    private readonly Mock<IDistributedCache> _mockCache;
+    private readonly ProductCatalogController _controller;
+
+    public ProductCatalogTest()
     {
-        private readonly Mock<IProductCatalogService> _mockService;
-        private readonly ProductCatalogController _controller;
+        _mockService = new Mock<IProductCatalogService>();
+        _mockCache = new Mock<IDistributedCache>();
+        _controller = new ProductCatalogController(_mockService.Object, _mockCache.Object);
+    }
 
-        public ProductCatalogTest()
-        {
-            _mockService = new Mock<IProductCatalogService>();
-            _controller = new ProductCatalogController(_mockService.Object);
-        }
+    [Fact]
+    public async Task GetAll_ReturnsFromCache_IfCacheExists()
+    {
+        // Arrange
+        var cachedProducts = new List<ProductDto> { new ProductDto { Id = 1, Title = "Cached Product" } };
+        string cachedJson = JsonConvert.SerializeObject(cachedProducts);
+        _mockCache.Setup(c => c.SetStringAsync(
+                                                "products:all",
+                                                It.IsAny<string>(),
+                                                It.IsAny<DistributedCacheEntryOptions>(),
+                                                It.IsAny<CancellationToken>()))
+                                                .Returns(Task.CompletedTask)
+                                                .Verifiable();
 
-        [Fact]
-        public async Task GetAll_ReturnsOkWithProducts()
-        {
-            // Arrange
-            _mockService.Setup(s => s.GetProductsAsync()).ReturnsAsync(new List<ProductDto>
-        {
-            new ProductDto { Id = 1, Title = "Test" }
-        });
 
-            // Act
-            var result = await _controller.GetAll();
+        // Act
+        var result = await _controller.GetAll();
 
-            // Assert
-            var okResult = result as OkObjectResult;
-            okResult.Should().NotBeNull();
-            okResult.StatusCode.Should().Be(200);
+        // Assert
+        var okResult = result as OkObjectResult;
+        okResult.Should().NotBeNull();
+        okResult.StatusCode.Should().Be(200);
 
-            var products = okResult.Value as List<ProductDto>;
-            products.Should().HaveCount(1);
-        }
+        var products = okResult.Value as List<ProductDto>;
+        products.Should().HaveCount(1);
+        products[0].Title.Should().Be("Cached Product");
 
-        [Fact]
-        public async Task Get_WithValidId_ReturnsOk()
-        {
-            // Arrange
-            var product = new ProductDto { Id = 1, Title = "Test Product" };
-            _mockService.Setup(s => s.GetProductByIdAsync(1)).ReturnsAsync(product);
+        _mockService.Verify(s => s.GetProductsAsync(), Times.Never);
+    }
 
-            // Act
-            var result = await _controller.Get(1);
+    [Fact]
+    public async Task GetAll_ReturnsFreshData_AndCaches_IfCacheEmpty()
+    {
+        // Arrange
+        _mockCache.Setup(c => c.SetStringAsync(
+                                                "products:all",
+                                                It.IsAny<string>(),
+                                                It.IsAny<DistributedCacheEntryOptions>(),
+                                                It.IsAny<CancellationToken>()))
+                                                .Returns(Task.CompletedTask)
+                                                .Verifiable();
 
-            // Assert
-            result.Should().BeOfType<OkObjectResult>()
-                  .Which.Value.Should().BeEquivalentTo(product);
-        }
+        var freshProducts = new List<ProductDto> { new ProductDto { Id = 2, Title = "Fresh Product" } };
+        _mockService.Setup(s => s.GetProductsAsync()).ReturnsAsync(freshProducts);
 
-        [Fact]
-        public async Task Get_WithInvalidId_ReturnsNotFound()
-        {
-            _mockService.Setup(s => s.GetProductByIdAsync(999)).ReturnsAsync((ProductDto)null);
+        _mockCache.Setup(c => c.SetStringAsync(
+            "products:all",
+            It.IsAny<string>(),
+            It.IsAny<DistributedCacheEntryOptions>(),
+            It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask)
+            .Verifiable();
 
-            var result = await _controller.Get(999);
+        // Act
+        var result = await _controller.GetAll();
 
-            result.Should().BeOfType<NotFoundResult>();
-        }
+        // Assert
+        var okResult = result as OkObjectResult;
+        okResult.Should().NotBeNull();
+        okResult.StatusCode.Should().Be(200);
 
-        [Fact]
-        public async Task Create_WithValidDto_ReturnsOk()
-        {
-            var createDto = new ProductCreateDto { Title = "New" };
-            var created = new ProductDto { Id = 1, Title = "New" };
+        var products = okResult.Value as List<ProductDto>;
+        products.Should().HaveCount(1);
+        products[0].Title.Should().Be("Fresh Product");
 
-            _mockService.Setup(s => s.AddProductAsync(createDto)).ReturnsAsync(created);
+        _mockService.Verify(s => s.GetProductsAsync(), Times.Once);
+        _mockCache.Verify();
+    }
 
-            var result = await _controller.Create(createDto);
+    [Fact]
+    public async Task Get_WithValidId_ReturnsOk()
+    {
+        // Arrange
+        var product = new ProductDto { Id = 1, Title = "Test Product" };
+        _mockService.Setup(s => s.GetProductByIdAsync(1)).ReturnsAsync(product);
 
-            result.Should().BeOfType<OkObjectResult>()
-                  .Which.Value.Should().BeEquivalentTo(created);
-        }
+        // Act
+        var result = await _controller.Get(1);
 
-        [Fact]
-        public async Task Create_WithInvalidDto_ReturnsBadRequest()
-        {
-            var createDto = new ProductCreateDto { Title = null };
+        // Assert
+        result.Should().BeOfType<OkObjectResult>()
+              .Which.Value.Should().BeEquivalentTo(product);
+    }
 
-            _mockService.Setup(s => s.AddProductAsync(createDto)).ReturnsAsync((ProductDto)null);
+    [Fact]
+    public async Task Get_WithInvalidId_ReturnsNotFound()
+    {
+        _mockService.Setup(s => s.GetProductByIdAsync(999)).ReturnsAsync((ProductDto)null);
 
-            var result = await _controller.Create(createDto);
+        var result = await _controller.Get(999);
 
-            result.Should().BeOfType<BadRequestResult>();
-        }
+        result.Should().BeOfType<NotFoundResult>();
+    }
 
-        [Fact]
-        public async Task Update_WithValidDto_ReturnsOk()
-        {
-            var updateDto = new ProductUpdateDto { Id = 1, Title = "Updated" };
-            var updated = new ProductDto { Id = 1, Title = "Updated" };
+    [Fact]
+    public async Task Create_WithValidDto_ReturnsOk()
+    {
+        var createDto = new ProductCreateDto { Title = "New" };
+        var created = new ProductDto { Id = 1, Title = "New" };
 
-            _mockService.Setup(s => s.UpdateProductAsync(updateDto)).ReturnsAsync(updated);
+        _mockService.Setup(s => s.AddProductAsync(createDto)).ReturnsAsync(created);
 
-            var result = await _controller.Update(1, updateDto);
+        var result = await _controller.Create(createDto);
 
-            result.Should().BeOfType<OkObjectResult>()
-                  .Which.Value.Should().BeEquivalentTo(updated);
-        }
+        result.Should().BeOfType<OkObjectResult>()
+              .Which.Value.Should().BeEquivalentTo(created);
+    }
 
-        [Fact]
-        public async Task Update_WithIdMismatch_ReturnsBadRequest()
-        {
-            var updateDto = new ProductUpdateDto { Id = 2, Title = "Mismatch" };
+    [Fact]
+    public async Task Create_WithInvalidDto_ReturnsBadRequest()
+    {
+        var createDto = new ProductCreateDto { Title = null };
 
-            var result = await _controller.Update(1, updateDto);
+        _mockService.Setup(s => s.AddProductAsync(createDto)).ReturnsAsync((ProductDto)null);
 
-            result.Should().BeOfType<BadRequestObjectResult>()
-                  .Which.Value.Should().Be("ID mismatch");
-        }
+        var result = await _controller.Create(createDto);
 
-        [Fact]
-        public async Task Update_WithNonExistingProduct_ReturnsNotFound()
-        {
-            var updateDto = new ProductUpdateDto { Id = 1, Title = "Missing" };
-            _mockService.Setup(s => s.UpdateProductAsync(updateDto)).ReturnsAsync((ProductDto)null);
+        result.Should().BeOfType<BadRequestResult>();
+    }
 
-            var result = await _controller.Update(1, updateDto);
+    [Fact]
+    public async Task Update_WithValidDto_ReturnsOk()
+    {
+        var updateDto = new ProductUpdateDto { Id = 1, Title = "Updated" };
+        var updated = new ProductDto { Id = 1, Title = "Updated" };
 
-            result.Should().BeOfType<NotFoundResult>();
-        }
+        _mockService.Setup(s => s.UpdateProductAsync(updateDto)).ReturnsAsync(updated);
 
-        [Fact]
-        public async Task Delete_WithExistingId_ReturnsOk()
-        {
-            _mockService.Setup(s => s.DeleteProductAsync(1)).ReturnsAsync(true);
+        var result = await _controller.Update(1, updateDto);
 
-            var result = await _controller.Delete(1);
+        result.Should().BeOfType<OkObjectResult>()
+              .Which.Value.Should().BeEquivalentTo(updated);
+    }
 
-            result.Should().BeOfType<OkObjectResult>()
-                  .Which.Value.Should().Be(true);
-        }
+    [Fact]
+    public async Task Update_WithIdMismatch_ReturnsBadRequest()
+    {
+        var updateDto = new ProductUpdateDto { Id = 2, Title = "Mismatch" };
 
-        [Fact]
-        public async Task Delete_WithNonExistingId_ReturnsNotFound()
-        {
-            _mockService.Setup(s => s.DeleteProductAsync(999)).ReturnsAsync(false);
+        var result = await _controller.Update(1, updateDto);
 
-            var result = await _controller.Delete(999);
+        result.Should().BeOfType<BadRequestObjectResult>()
+              .Which.Value.Should().Be("ID mismatch");
+    }
 
-            result.Should().BeOfType<NotFoundResult>();
-        }
+    [Fact]
+    public async Task Update_WithNonExistingProduct_ReturnsNotFound()
+    {
+        var updateDto = new ProductUpdateDto { Id = 1, Title = "Missing" };
+        _mockService.Setup(s => s.UpdateProductAsync(updateDto)).ReturnsAsync((ProductDto)null);
+
+        var result = await _controller.Update(1, updateDto);
+
+        result.Should().BeOfType<NotFoundResult>();
+    }
+
+    [Fact]
+    public async Task Delete_WithExistingId_ReturnsOk()
+    {
+        _mockService.Setup(s => s.DeleteProductAsync(1)).ReturnsAsync(true);
+
+        var result = await _controller.Delete(1);
+
+        result.Should().BeOfType<OkObjectResult>()
+              .Which.Value.Should().Be(true);
+    }
+
+    [Fact]
+    public async Task Delete_WithNonExistingId_ReturnsNotFound()
+    {
+        _mockService.Setup(s => s.DeleteProductAsync(999)).ReturnsAsync(false);
+
+        var result = await _controller.Delete(999);
+
+        result.Should().BeOfType<NotFoundResult>();
     }
 }
