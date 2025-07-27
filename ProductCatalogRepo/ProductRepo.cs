@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace ProductCatalogRepo
@@ -31,7 +32,22 @@ namespace ProductCatalogRepo
 
         public async Task<Product> GetProductByIdAsync(int id)
         {
-            return await _httpClient.GetFromJsonAsync<Product>($"products/{id}");
+            if (id == 0)
+            {
+                return null;    
+            }
+            var response = await _httpClient.GetAsync($"products/{id}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var contentStream = await response.Content.ReadAsStreamAsync();
+            return await JsonSerializer.DeserializeAsync<Product>(contentStream, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
         }
 
         public async Task<IList<Product>> GetProductsAsync()
@@ -40,9 +56,12 @@ namespace ProductCatalogRepo
 
         }
 
-        public Task<Product> UpdateProductAsync(Product product)
+        public async Task<Product> UpdateProductAsync(Product product)
         {
-            throw new NotImplementedException();
+            var response = await _httpClient.PutAsJsonAsync($"products/{product.Id}", product);
+            if (!response.IsSuccessStatusCode) return null;
+
+            return await response.Content.ReadFromJsonAsync<Product>();
         }
 
         public async Task<bool> DeleteProductAsync(int id)

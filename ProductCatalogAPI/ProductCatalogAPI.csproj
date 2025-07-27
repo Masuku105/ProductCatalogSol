@@ -6,15 +6,12 @@
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="15.0.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="7.3.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ProductCatalogRepo\ProductCatalogRepo.csproj" />
     <ProjectReference Include="..\ProductCatalogService\ProductCatalogService.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Controllers\" />
   </ItemGroup>
 
 

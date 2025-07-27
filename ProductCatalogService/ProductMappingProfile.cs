@@ -2,7 +2,7 @@
 using ProductCatalogRepo.Models;
 using ProductCatalogService.Dtos;
 
-namespace ProductCatalogAPI
+namespace ProductCatalogService
 {
     public class ProductMappingProfile : Profile
     {
