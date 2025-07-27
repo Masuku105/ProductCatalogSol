@@ -65,54 +65,41 @@ namespace ProductCatalogWeb.Controllers
             });
 
         }
+        [HttpGet("/Product/GetCreateModal")]
+        public IActionResult GetCreateModal() => PartialView("_CreateProductModal", new ProductCreateDto());
+
+        [HttpGet("/Product/GetEditModal")]
+        public async Task<IActionResult> GetEditModal(int id)
+        {
+            var p = await _productService.GetProductByIdAsync(id);
+            return PartialView("_EditProductModal", p);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(ProductCreateDto model)
         {
-            if (!ModelState.IsValid)
-                return View(model);
-
-            var created = await _productService.CreateProductAsync(model);
-            if (created == null)
+            if (!ModelState.IsValid) return PartialView("_CreateProductModal", model);
+            var results = await _productService.CreateProductAsync(model);
+            if (results.Id != 0)
             {
-                ModelState.AddModelError("", "Failed to create product");
-                return View(model);
+                return RedirectToAction("Index");
             }
-
-            return RedirectToAction(nameof(Index));
-        }
-
-
-        [HttpGet]
-        public async Task<IActionResult> GetEditModal(int id)
-        {
-            var prod = await _productService.GetProductByIdAsync(id);
-            if (prod == null) return NotFound();
-            var dto = new ProductUpdateDto
-            {
-                Id = prod.Id,
-                Title = prod.Title,
-                Description = prod.Description,
-                Price = prod.Price,
-                Image = prod.Image
-            };
-            return PartialView("_EditProductModal", dto);
+            return PartialView("_CreateProductModal", new ProductCreateDto());
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(ProductUpdateDto model)
         {
-            if (!ModelState.IsValid)
-                return PartialView("_EditProductModal", model);
-
-            var updated = await _productService.UpdateProductAsync(model);
-            if (updated == null)
-                ModelState.AddModelError("", "Failed to update product");
-
+            if (!ModelState.IsValid) return PartialView("_EditProductModal", model);
+            var results = await _productService.UpdateProductAsync(model);
+            if (results != null)
+            {
+                return RedirectToAction("Index");
+            }
             return PartialView("_EditProductModal", model);
         }
-
 
         [HttpPost]
         [ValidateAntiForgeryToken]

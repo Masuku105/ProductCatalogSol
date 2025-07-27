@@ -22,7 +22,7 @@ namespace ProductCatalogRepo
         {
 
             var response = await _httpClient.PostAsJsonAsync("products", product);
-            if (response != null)
+            if (response == null)
             { 
                 return null;
             }

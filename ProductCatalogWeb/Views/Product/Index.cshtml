@@ -1,34 +1,39 @@
 ﻿@model ProductCatalogWeb.Models.ProductListViewModel
-
 @{
     ViewData["Title"] = "Products";
 }
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" />
 
-<h2>Products</h2>
+</head>
+<div class="input-group mb-3">
+    <h2>DreamTeam Assement Xolani Masuku</h2>
+ </div>
+<div class="input-group mb-3">   
+    <input id="searchInput" class="form-control" placeholder="Search products..." aria-label="Search" aria-describedby="search-icon" />
+    <span class="input-group-text" id="search-icon">
+        <i class="fas fa-search"></i>
+    </span>
+</div>
 
-<!-- Live search input only -->
-<input id="searchInput" class="form-control mb-3" placeholder="Search products..." />
+<div class="mb-3">
+    <button type="button" class="btn btn-success create-btn">Create New Product</button>
+</div>
 
-<!-- Create button -->
-<a href="@Url.Action("Create", "Product")" class="btn btn-primary mb-3">Create New Product</a>
+<div id="modalPlaceholder"></div>
 
-<!-- Cards container -->
 <div id="productsContainer" class="row">
-    <div id="modalPlaceholder"></div>
     @foreach (var p in Model.Products)
     {
         <div class="col-md-4 mb-4">
             <div class="card h-100">
-                <img src="@p.Image" class="card-img-top" style="height:200px; object-fit:contain;" alt="@p.Title" />
+                <img src="@p.Image" class="card-img-top" style="height:200px; object-fit:contain" alt="@p.Title" />
                 <div class="card-body d-flex flex-column">
                     <h5 class="card-title">@p.Title</h5>
                     <p class="card-text">@p.Description</p>
                     <p><strong>Price:</strong> $@p.Price</p>
                     <div class="mt-auto">
-                        <a href="@Url.Action("Edit", "Product", new { id = p.Id })" class="btn btn-sm btn-warning">Update</a>
-                        <form asp-action="Delete" asp-controller="Products" asp-route-id="@p.Id" method="post" class="d-inline" onsubmit="return confirm('Delete?');">
-                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                        </form>
+                        <button class="btn btn-warning edit-btn" data-id="@p.Id">Edit</button>
                     </div>
                 </div>
             </div>
@@ -36,19 +41,25 @@
     }
 </div>
 
-<!-- Pagination container -->
 <nav>
     <ul class="pagination justify-content-center" id="paginationContainer">
         @for (int i = 1; i <= Model.TotalPages; i++)
         {
             <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                <a class="page-link" href="javascript:void(0)" onclick="goToPage(@i)">@i</a>
+                <a href="javascript:void(0)" class="page-link" onclick="goToPage(@i)">@i</a>
             </li>
-        }
+        }        
     </ul>
 </nav>
 
 @section Scripts {
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validate/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+    <script src="~/lib/jquery-unobtrusive-ajax/jquery.unobtrusive-ajax.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
     <script>
         let currentPage = @Model.CurrentPage;
         let totalPages = @Model.TotalPages;
@@ -63,28 +74,25 @@
         function renderProducts(products) {
             const container = document.getElementById('productsContainer');
             container.innerHTML = '';
-            if (!products || products.length === 0) {
+            if (!products?.length) {
                 container.innerHTML = '<p>No products found.</p>';
                 return;
             }
             products.forEach(p => {
                 container.innerHTML += `
-                <div class="col-md-4 mb-4">
-                  <div class="card h-100">
-                    <img src="${p.image}" class="card-img-top" style="height:200px; object-fit:contain;" alt="${p.title}" />
-                    <div class="card-body d-flex flex-column">
-                      <h5 class="card-title">${p.title}</h5>
-                      <p class="card-text">${p.description}</p>
-                      <p><strong>Price:</strong> $${p.price}</p>
-                      <div class="mt-auto">
-                        <a href="/Products/Edit/${p.id}" class="btn btn-sm btn-warning">Update</a>
-                        <form action="/Products/Delete/${p.id}" method="post" class="d-inline">
-                          <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                        </form>
+                    <div class="col-md-4 mb-4">
+                      <div class="card h-100">
+                        <img src="${p.image}" class="card-img-top" style="height:200px; object-fit:contain" alt="${p.title}" />
+                        <div class="card-body d-flex flex-column">
+                          <h5 class="card-title">${p.title}</h5>
+                          <p class="card-text">${p.description}</p>
+                          <p><strong>Price:</strong> $${p.price}</p>
+                          <div class="mt-auto">
+                            <button class="btn btn-warning edit-btn" data-id="${p.id}">Edit</button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>`;
+                    </div>`;
             });
         }
 
@@ -93,10 +101,11 @@
             totalPages = total;
             const nav = document.getElementById('paginationContainer');
             nav.innerHTML = '';
-            for (let i = 1; i <= totalPages; i++) {
-                nav.innerHTML += `<li class="page-item ${i === currentPage ? 'active' : ''}">
-                  <a class="page-link" href="javascript:void(0)" onclick="goToPage(${i})">${i}</a>
-                </li>`;
+            for (let i = 1; i <= total; i++) {
+                nav.innerHTML += `
+                    <li class="page-item ${i === page ? 'active' : ''}">
+                      <a class="page-link" href="#" onclick="goToPage(${i})">${i}</a>
+                    </li>`;
             }
         }
 
@@ -105,9 +114,35 @@
             loadData(search, page);
         }
 
-        document.getElementById('searchInput').addEventListener('input', e => {
-            loadData(e.target.value, 1);
+        document.getElementById('searchInput').addEventListener('input', e => loadData(e.target.value, 1));
+
+        // Open Create modal
+        $('body').on('click', '.create-btn', function() {
+            $.get('/Product/GetCreateModal', html => {
+                $('#modalPlaceholder').html(html);
+                $('#productModal').modal('show');
+            });
         });
 
+        // Open Edit modal
+        $('body').on('click', '.edit-btn', function() {
+            $.get(`/Product/GetEditModal?id=${this.dataset.id}`, html => {
+                $('#modalPlaceholder').html(html);
+                $('#productModal').modal('show');
+            });
+        });
+
+        // Handle AJAX form submission using unobtrusive AJAX
+        $('body').on('ajax:success', 'form[data-ajax="true"]', function() {
+            $('#productModal').modal('hide');
+            loadData($('#searchInput').val(), currentPage);
+        });
+
+        // Handle validation errors (modal still shown)
+        $('body').on('ajax:error', 'form[data-ajax="true"]', function(event) {
+            const response = event.detail[2]?.response;
+            $('#productModal .modal-content').html(response);
+            $('#productModal').modal('show');
+        });
     </script>
 }

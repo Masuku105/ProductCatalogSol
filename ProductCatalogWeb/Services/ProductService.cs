@@ -36,7 +36,7 @@ namespace ProductCatalog.MvcClient.Services
             }
         }
 
-        public async Task<ProductDto> GetProductByIdAsync(int id)
+        public async Task<ProductUpdateDto> GetProductByIdAsync(int id)
         {
             try
             {
@@ -45,7 +45,7 @@ namespace ProductCatalog.MvcClient.Services
                     return null;
 
                 var content = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<ProductDto>(content,
+                return JsonSerializer.Deserialize<ProductUpdateDto>(content,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch
