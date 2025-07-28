@@ -6,6 +6,7 @@ This `.NET Core` solution includes:
 - **Web API** project for product catalog operations
 - **Web UI** (MVCfront-end consuming the API)
 - **Unit & integration tests** (xUnit, mocks)
+- Redis 
 
 ---
 
@@ -14,6 +15,8 @@ This `.NET Core` solution includes:
 - .NET Core SDK (3.1)
 - Redis server (Ensure you change the url on the api appsettings)
 - Redis via Memurai/Standalone install
+- downloan redis here https://www.memurai.com/thanks-for-downloading?version=windows-redis
+- Rusun this command to install redis msiexec /i "{path where exe file is located}\Memurai-Developer-4.2.0.msi" /l*v "install.log" 
 
 ---
 
