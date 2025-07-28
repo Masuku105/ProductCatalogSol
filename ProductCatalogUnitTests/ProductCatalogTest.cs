@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Xunit;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
 
 public class ProductCatalogTest
 {
@@ -28,16 +29,16 @@ public class ProductCatalogTest
     public async Task GetAll_ReturnsFromCache_IfCacheExists()
     {
         // Arrange
-        var cachedProducts = new List<ProductDto> { new ProductDto { Id = 1, Title = "Cached Product" } };
-        string cachedJson = JsonConvert.SerializeObject(cachedProducts);
-        _mockCache.Setup(c => c.SetStringAsync(
-                                                "products:all",
-                                                It.IsAny<string>(),
-                                                It.IsAny<DistributedCacheEntryOptions>(),
-                                                It.IsAny<CancellationToken>()))
-                                                .Returns(Task.CompletedTask)
-                                                .Verifiable();
+        var cachedProducts = new List<ProductDto>
+    {
+        new ProductDto { Id = 1, Title = "Cached Product" }
+    };
 
+        string cachedJson = JsonConvert.SerializeObject(cachedProducts);
+        byte[] cachedBytes = Encoding.UTF8.GetBytes(cachedJson);
+
+        _mockCache.Setup(c => c.GetAsync("products:all", It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(cachedBytes);
 
         // Act
         var result = await _controller.GetAll();
@@ -48,30 +49,37 @@ public class ProductCatalogTest
         okResult.StatusCode.Should().Be(200);
 
         var products = okResult.Value as List<ProductDto>;
+        products.Should().NotBeNull();
         products.Should().HaveCount(1);
         products[0].Title.Should().Be("Cached Product");
 
         _mockService.Verify(s => s.GetProductsAsync(), Times.Never);
     }
 
+
     [Fact]
     public async Task GetAll_ReturnsFreshData_AndCaches_IfCacheEmpty()
     {
         // Arrange
-        _mockCache.Setup(c => c.SetStringAsync(
-                                                "products:all",
-                                                It.IsAny<string>(),
-                                                It.IsAny<DistributedCacheEntryOptions>(),
-                                                It.IsAny<CancellationToken>()))
-                                                .Returns(Task.CompletedTask)
-                                                .Verifiable();
+        var cacheKey = "products:all";
 
-        var freshProducts = new List<ProductDto> { new ProductDto { Id = 2, Title = "Fresh Product" } };
-        _mockService.Setup(s => s.GetProductsAsync()).ReturnsAsync(freshProducts);
+        // Simulate an empty cache (cache miss)
+        _mockCache.Setup(c => c.GetAsync(cacheKey, It.IsAny<CancellationToken>()))
+                  .ReturnsAsync((byte[])null);
 
-        _mockCache.Setup(c => c.SetStringAsync(
-            "products:all",
-            It.IsAny<string>(),
+        // Mock fresh data from service
+        var freshProducts = new List<ProductDto>
+    {
+        new ProductDto { Id = 2, Title = "Fresh Product" }
+    };
+
+        _mockService.Setup(s => s.GetProductsAsync())
+                    .ReturnsAsync(freshProducts);
+
+        // Mock setting cache manually (since SetStringAsync is an extension method)
+        _mockCache.Setup(c => c.SetAsync(
+            cacheKey,
+            It.IsAny<byte[]>(),
             It.IsAny<DistributedCacheEntryOptions>(),
             It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask)
@@ -86,6 +94,7 @@ public class ProductCatalogTest
         okResult.StatusCode.Should().Be(200);
 
         var products = okResult.Value as List<ProductDto>;
+        products.Should().NotBeNull();
         products.Should().HaveCount(1);
         products[0].Title.Should().Be("Fresh Product");
 
