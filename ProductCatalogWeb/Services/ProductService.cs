@@ -1,6 +1,7 @@
 ﻿using ProductCatalogWeb.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -53,6 +54,42 @@ namespace ProductCatalog.MvcClient.Services
                 return null;
             }
         }
+        public async Task<ProductListViewModel> GetFilteredProductsAsync(string search, string category, string sort, int page)
+        {
+            var query = await GetAllAsync();
+
+            if (!string.IsNullOrWhiteSpace(search))
+                query = query.Where(p => p.Title.Contains(search) || p.Description.Contains(search));
+
+            if (!string.IsNullOrWhiteSpace(category))
+                query = query.Where(p => p.Category == category);
+
+            query = sort switch
+            {
+                "name_asc" => query.OrderBy(p => p.Title),
+                "name_desc" => query.OrderByDescending(p => p.Title),
+                "price_asc" => query.OrderBy(p => p.Price),
+                "price_desc" => query.OrderByDescending(p => p.Price),
+                _ => query.OrderBy(p => p.Title) 
+            };
+
+            int pageSize = 9;
+            var products =  query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var totalItems =  query.Count();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+            return new ProductListViewModel
+            {
+                Products = products,
+                CurrentPage = page,
+                TotalPages = totalPages
+            };
+        }
+
 
         public async Task<ProductDto> CreateProductAsync(ProductCreateDto createDto)
         {

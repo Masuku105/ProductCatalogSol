@@ -21,7 +21,10 @@ namespace ProductCatalogWeb.Controllers
         public async Task<IActionResult> Index(string search = "", int page = 1)
         {
             var allProducts = await _productService.GetAllAsync() ?? new List<ProductDto>();
+            var categories = allProducts.Select(x => x.Category).Distinct().Select(c=> new CategoryDto { Category= c}).ToList();
+    
 
+          
             if (!string.IsNullOrWhiteSpace(search))
                 allProducts = allProducts.Where(p => p.Title.ToLower().Contains(search.ToLower()));
 
@@ -37,6 +40,7 @@ namespace ProductCatalogWeb.Controllers
             var vm = new ProductListViewModel
             {
                 Products = paged,
+                Categories = categories,
                 SearchQuery = search,
                 CurrentPage = page,
                 TotalPages = totalPages
@@ -46,12 +50,25 @@ namespace ProductCatalogWeb.Controllers
         }
 
         [HttpGet("/Product/GetProductsJson")]
-        public async Task<IActionResult> GetProductsJson(string search = "", int page = 1)
+        public async Task<IActionResult> GetProductsJson(string search = "", int page = 1, string category = "", string sort = "")
         {
             var all = await _productService.GetAllAsync() ?? new List<ProductDto>();
 
             if (!string.IsNullOrWhiteSpace(search))
-                all = all.Where(p => p.Title.Contains(search, StringComparison.OrdinalIgnoreCase));
+                all = all.Where(p => p.Title.Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (!string.IsNullOrWhiteSpace(category))
+                all = all.Where(p => p.Category.Equals(category, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            // Sorting
+            all = sort switch
+            {
+                "name_asc" => all.OrderBy(p => p.Title).ToList(),
+                "name_desc" => all.OrderByDescending(p => p.Title).ToList(),
+                "price_asc" => all.OrderBy(p => p.Price).ToList(),
+                "price_desc" => all.OrderByDescending(p => p.Price).ToList(),
+                _ => all
+            };
 
             const int pageSize = 6;
             var totalItems = all.Count();
@@ -59,7 +76,19 @@ namespace ProductCatalogWeb.Controllers
 
             return Json(new
             {
-                products = paged,
+                products = paged.Select(p => new {
+                    id = p.Id,
+                    title = p.Title,
+                    description = p.Description,
+                    price = p.Price,
+                    image = p.Image,
+                    category = p.Category,
+                    rating = new
+                    {
+                        rate = p.Rating?.Rate ?? 0,
+                        count = p.Rating?.Count ?? 0
+                    }
+                }),
                 currentPage = page,
                 totalPages = (int)Math.Ceiling((double)totalItems / pageSize)
             });
